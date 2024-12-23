@@ -1,0 +1,23 @@
+services:
+  proxy:
+    container_name: proxy
+    build:
+      context: docker/proxy
+      dockerfile: Dockerfile
+    image: $CI_REGISTRY_IMAGE/qr-proxy
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - qr
+  qr:
+    container_name: qr
+    build:
+      context: .
+      dockerfile: docker/qr/Dockerfile
+    image: $CI_REGISTRY_IMAGE/qr
+    environment:
+      MAIL_HOST: $MAIL_HOST
+      MAIL_USER: $MAIL_USER
+      MAIL_PWD: $MAIL_PWD
+      MAIL_PORT: $MAIL_PORT

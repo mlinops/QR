@@ -1,0 +1,75 @@
+---
+stages:
+  - build
+  - deploy
+
+variables:
+  MAVEN_OPTS: >-
+    -Dhttps.protocols=TLSv1.2
+    -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
+    -Dorg.slf4j.simpleLogger.showDateTime=true
+    -Djava.awt.headless=true
+  MAVEN_CLI_OPTS: >-
+    --batch-mode
+    --errors
+    --fail-at-end
+    --show-version
+    --no-transfer-progress
+    -DinstallAtEnd=true
+    -DdeployAtEnd=true
+
+image: 
+  name: maven:latest
+  pull_policy: always
+
+cache:
+  key: $CI_PROJECT_NAME-$CI_COMMIT_REF_SLUG
+  paths:
+    - target
+.verify:
+  stage: build
+  script:
+    - 'mvn $MAVEN_CLI_OPTS verify'
+
+compilation:
+  stage: build
+  before_script:
+    - mvn clean
+  script:
+    - mvn package $MAVEN_OPTS
+  tags:
+    - dev
+  artifacts:
+    paths:
+      - target/*.jar    
+
+assembly:
+  stage: build
+  image: 
+    name: docker:latest
+    entrypoint: [""]
+    pull_policy: always
+  before_script:
+    - echo "$CERTIFICATE" > docker/proxy/ssl/chain.pem
+    - echo "$KEY" > docker/proxy/ssl/private.key
+  script:
+    - docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - docker compose build 
+    - docker push $CI_REGISTRY_IMAGE/qr:latest
+    - docker push $CI_REGISTRY_IMAGE/qr-proxy:latest
+  needs:
+    - job: compilation
+      optional: true
+  tags:
+    - dev
+
+deploy:
+  stage: deploy
+  image: 
+    name: docker:latest
+    entrypoint: [""]
+    pull_policy: always
+  script:
+    - docker compose up -d --remove-orphans
+  tags:
+    - dev
